@@ -1,145 +1,167 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:provider/provider.dart';
+
+// Create an instance of FlutterLocalNotificationsPlugin
+// Global instance for the notifications plugin
+FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
 void main() {
-  runApp(TicTacToeApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  initializeNotifications(); // Initialize notifications on startup
+  runApp(MyApp());
 }
 
-class TicTacToeApp extends StatelessWidget {
+// Function to initialize local notifications
+void initializeNotifications() {
+  var initializationSettingsAndroid =
+      const AndroidInitializationSettings('@mipmap/ic_launcher');
+  var initializationSettings =
+      InitializationSettings(android: initializationSettingsAndroid);
+
+  flutterLocalNotificationsPlugin.initialize(initializationSettings);
+}
+
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tic-Tac-Toe',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+    return ChangeNotifierProvider(
+      create: (_) => TimerProvider(),
+      child: MaterialApp(
+        home: TimerScreen(),
       ),
-      home: TicTacToeGame(),
     );
   }
 }
 
-class TicTacToeGame extends StatefulWidget {
-  @override
-  _TicTacToeGameState createState() => _TicTacToeGameState();
-}
-
-class _TicTacToeGameState extends State<TicTacToeGame> {
-  List<String>? _board; // Holds the current state of the game
-  bool? _isXTurn; // Keeps track of the current player's turn
-  String? _winner; // Keeps track of the winner (if any)
-
-  @override
-  void initState() {
-    super.initState();
-    _resetGame(); // Initialize the game board
-  }
-
-  void _resetGame() {
-    setState(() {
-      _board = List<String>.filled(9, ''); // 9 empty slots
-      _isXTurn = true; // X starts the game
-      _winner = ''; // No winner initially
-    });
-  }
-
-  void _handleTap(int index) {
-    if (_board![index] != '' || _winner != '') {
-      return; // Do nothing if the cell is already occupied or game is over
-    }
-
-    setState(() {
-      _board![index] =
-          _isXTurn! ? 'X' : 'O'; // Assign X or O to the tapped cell
-      _isXTurn = !_isXTurn!; // Toggle the player turn
-      _winner = _checkWinner(); // Check if there's a winner
-    });
-  }
-
-  String _checkWinner() {
-    const List<List<int>> winningCombinations = [
-      [0, 1, 2], // Top row
-      [3, 4, 5], // Middle row
-      [6, 7, 8], // Bottom row
-      [0, 3, 6], // Left column
-      [1, 4, 7], // Middle column
-      [2, 5, 8], // Right column
-      [0, 4, 8], // Diagonal top-left to bottom-right
-      [2, 4, 6], // Diagonal top-right to bottom-left
-    ];
-
-    // Check if any winning combination is satisfied
-    for (var combo in winningCombinations) {
-      if (_board![combo[0]] != '' &&
-          _board![combo[0]] == _board![combo[1]] &&
-          _board![combo[1]] == _board![combo[2]]) {
-        return _board![combo[0]]; // Return the winner (X or O)
-      }
-    }
-
-    // If all cells are filled and no winner, it's a draw
-    if (!_board!.contains('')) {
-      return 'Draw';
-    }
-
-    return ''; // No winner yet
-  }
-
-  Widget _buildBoard() {
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, // 3x3 grid
-      ),
-      itemCount: 9,
-      itemBuilder: (context, index) {
-        return GestureDetector(
-          onTap: () => _handleTap(index),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black),
-            ),
-            child: Center(
-              child: Text(
-                _board![index],
-                style: TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+// The main screen that shows the timer and button
+class TimerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final timerProvider = Provider.of<TimerProvider>(context);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Tic-Tac-Toe'),
-      ),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Expanded(
-            child: _buildBoard(), // Display the game board
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              _winner!.isNotEmpty
-                  ? _winner == 'Draw'
-                      ? 'It\'s a Draw!'
-                      : 'Winner: $_winner'
-                  : 'Turn: ${_isXTurn! ? 'X' : 'O'}',
+      appBar: AppBar(title: Text("Timer with Notification")),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text(
+              "Time Remaining: ${timerProvider.remainingSeconds} seconds",
               style: TextStyle(fontSize: 24),
             ),
-          ),
-          ElevatedButton(
-            onPressed: _resetGame, // Reset the game
-            child: Text('Restart Game'),
-          ),
-        ],
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                timerProvider
+                    .startTimer(); // Start the timer and show notification
+              },
+              child: Text("Start Timer"),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class TimerProvider with ChangeNotifier {
+  int _remainingSeconds = 60; // Total duration of the timer
+  int _totalSeconds =
+      60; // Store the initial timer value for progress calculation
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  int get remainingSeconds => _remainingSeconds;
+
+  void startTimer() {
+    _remainingSeconds = 60; // Reset the timer
+    _totalSeconds = 60; // Store the total duration
+    _showNotification(0); // Show notification with progress bar
+    _countdown();
+  }
+
+  void _countdown() {
+    if (_remainingSeconds > 0) {
+      Future.delayed(Duration(seconds: 1), () {
+        _remainingSeconds--;
+        notifyListeners(); // Update the UI
+        _updateProgressNotification(); // Update notification with progress
+        _countdown(); // Continue the countdown
+      });
+    } else {
+      _completeNotification(); // Notify when timer finishes
+    }
+  }
+
+  // Function to show the initial notification with a progress bar
+  void _showNotification(int progress) async {
+    var androidDetails = AndroidNotificationDetails(
+      'channel_id', 'Timer',
+      channelDescription: 'Timer Notification',
+      importance: Importance.max,
+      priority: Priority.high,
+      ongoing: true, // Make notification ongoing
+      showWhen: false,
+      onlyAlertOnce: true, // Avoid multiple sound alerts
+    );
+
+    var notificationDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      0, // Notification ID
+      'Timer Started', // Notification title
+      'Time remaining: $_remainingSeconds seconds', // Notification body
+      notificationDetails,
+    );
+  }
+
+  // Function to update the notification with progress
+  void _updateProgressNotification() async {
+    // Calculate the progress percentage (0 to 100)
+    int progress = ((_totalSeconds - _remainingSeconds) * 100) ~/ _totalSeconds;
+
+    var androidDetails = AndroidNotificationDetails(
+      'channel_id', 'Timer',
+      channelDescription: 'Timer Notification',
+      importance: Importance.max,
+      priority: Priority.high,
+      ongoing: true,
+      showWhen: false,
+      onlyAlertOnce: true,
+      progress: 100, // Set max progress value to 100
+      indeterminate: false, // Make sure it's determinate
+    );
+
+    var notificationDetails = NotificationDetails(android: androidDetails);
+
+    // Update the notification with progress
+    await flutterLocalNotificationsPlugin.show(
+      0, // Notification ID
+      'Timer Update',
+      'Time remaining: $_remainingSeconds seconds',
+      notificationDetails,
+    );
+  }
+
+  // Function to show a notification when the timer finishes
+  void _completeNotification() async {
+    var androidDetails = AndroidNotificationDetails(
+      'channel_id',
+      'Timer Finished',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: false,
+    );
+
+    var notificationDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'Timer Done',
+      'The timer has ended.',
+      notificationDetails,
     );
   }
 }
