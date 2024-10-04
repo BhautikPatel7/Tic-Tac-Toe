@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:timer_work/expandleblist.dart';
+import 'package:timer_work/views/appbar_demo.dart';
+import 'package:timer_work/views/changeThemeexample.dart';
+import 'package:timer_work/views/expandleblist.dart';
 
 void main() {
   runApp(MyApp());
@@ -13,7 +15,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: ExpandableListView(),
+      home: FirstScreen(),
     );
   }
 }
